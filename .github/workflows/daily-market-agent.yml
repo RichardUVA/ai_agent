@@ -43,11 +43,11 @@ jobs:
 
       - name: Check out repository
         if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
         if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

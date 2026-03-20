@@ -697,7 +697,7 @@ def render_html_report(
 
     timestamp = generated_at.strftime("%Y-%m-%d %I:%M %p %Z")
     llm_label = (
-        f"Ollama summary enabled: {llm_status}"
+        "AI-generated summary"
         if llm_enabled
         else f"Fallback summary used: {llm_status}"
     )
@@ -747,8 +747,8 @@ def render_html_report(
       <body style="margin:0; padding:24px 0; background:#f5f7fb; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#111827; line-height:1.5;">
         <div style="max-width:760px; margin:0 auto; padding:0 16px;">
           <div style="background:linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); border-radius:24px; padding:28px 24px; color:#ffffff; box-shadow:0 20px 40px rgba(15, 23, 42, 0.16);">
-            <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.12em; opacity:0.8;">Morning Market Agent</div>
-            <h1 style="margin:10px 0 10px; font-size:30px; line-height:1.15;">Daily market brief for your core watchlist</h1>
+            <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.12em; opacity:0.8;">Daily Market Digest</div>
+            <h1 style="margin:10px 0 10px; font-size:30px; line-height:1.15;">Daily market digest for your core watchlist</h1>
             <p style="margin:0; font-size:14px; opacity:0.92;">Generated at {html.escape(timestamp)}</p>
             <div style="margin-top:12px; display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.14); font-size:13px;">
               {html.escape(llm_label)}
@@ -949,7 +949,7 @@ def main() -> None:
     report_html = render_html_report(**payload)
 
     subject_date = payload["generated_at"].strftime("%Y-%m-%d")
-    subject = f"Morning Market Agent - {subject_date}"
+    subject = f"Daily Market Digest - {subject_date}"
     send_email(config, subject, report_html)
     print(f"Report sent to {', '.join(config.email_to)}")
 
