@@ -1,0 +1,60 @@
+name: Daily Market Agent
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "5 * * * *"
+
+permissions:
+  contents: read
+  models: read
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/Detroit
+      LLM_PROVIDER: github_models
+      GITHUB_MODELS_MODEL: openai/gpt-4.1
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      TIMEZONE: America/Detroit
+      LOOKBACK_DAYS: "90"
+      MARKET_NEWS_COUNT: "6"
+      DIGEST_TOTAL_NEWS_COUNT: "3"
+      DIGEST_TICKERS: "VOO,QQQM,VGT,KLAC,NVDA,JPM"
+      BUY_CANDIDATE_COUNT: "5"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Check Detroit time
+        id: schedule_gate
+        run: |
+          HOUR="$(TZ=America/Detroit date +%H)"
+          if [ "$HOUR" != "16" ]; then
+            echo "run_now=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "run_now=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check out repository
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        run: pip install -r requirements.txt
+
+      - name: Send report
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        run: python stock_agent.py
