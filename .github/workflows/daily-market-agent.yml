@@ -34,11 +34,15 @@ jobs:
       - name: Check Detroit time
         id: schedule_gate
         run: |
+          NOW="$(TZ=America/Detroit date '+%Y-%m-%d %H:%M:%S %Z')"
           HOUR="$(TZ=America/Detroit date +%H)"
+          echo "Current Detroit time: $NOW"
           if [ "$HOUR" != "16" ]; then
+            echo "Skipping send because it is not 4 PM in Detroit yet."
             echo "run_now=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "Sending today's 4 PM Detroit digest now."
           echo "run_now=true" >> "$GITHUB_OUTPUT"
 
       - name: Check out repository
@@ -60,4 +64,12 @@ jobs:
 
       - name: Send report
         if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
-        run: python stock_agent.py
+        run: python stock_agent.py | tee workflow-report.log
+
+      - name: Upload workflow report log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-report-log
+          path: workflow-report.log
+          if-no-files-found: ignore
