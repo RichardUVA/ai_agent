@@ -409,6 +409,63 @@ def build_brief_schema(digest_tickers: list[str]) -> dict[str, Any]:
     }
 
 
+def normalize_brief_output(brief: dict[str, Any], digest_tickers: list[str]) -> dict[str, Any]:
+    normalized_news = []
+    for item in brief.get("market_news_briefs", [])[:3]:
+        if not isinstance(item, dict):
+            item = {"headline": str(item), "takeaway": ""}
+        headline = clean_text(str(item.get("headline", "") or "Market update"))
+        takeaway = clean_text(
+            str(
+                item.get("takeaway")
+                or item.get("summary")
+                or item.get("detail")
+                or "No additional takeaway provided."
+            )
+        )
+        normalized_news.append({"headline": headline, "takeaway": takeaway})
+
+    while len(normalized_news) < 3:
+        normalized_news.append(
+            {
+                "headline": "No additional market headline available",
+                "takeaway": "No additional takeaway provided.",
+            }
+        )
+
+    digests = brief.get("digests", {})
+    if not isinstance(digests, dict):
+        digests = {}
+    normalized_digests = {
+        ticker: clean_text(str(digests.get(ticker, "No digest available.")))
+        for ticker in digest_tickers
+    }
+
+    movers = brief.get("movers", {})
+    if not isinstance(movers, dict):
+        movers = {}
+    normalized_movers = {
+        "top": clean_text(str(movers.get("top", "No top mover summary available."))),
+        "bottom": clean_text(
+            str(movers.get("bottom", "No bottom mover summary available."))
+        ),
+    }
+
+    buy_candidates_summary = clean_text(
+        str(
+            brief.get("buy_candidates_summary")
+            or "These are heuristic buy candidates based on recent S&P 500 price action."
+        )
+    )
+
+    return {
+        "market_news_briefs": normalized_news,
+        "digests": normalized_digests,
+        "movers": normalized_movers,
+        "buy_candidates_summary": buy_candidates_summary,
+    }
+
+
 def generate_ollama_brief(config: Config, llm_input: dict[str, Any]) -> dict[str, Any] | None:
     if config.llm_provider != "ollama":
         return None
@@ -439,9 +496,7 @@ def generate_ollama_brief(config: Config, llm_input: dict[str, Any]) -> dict[str
     raw_output = strip_code_fences(payload.get("response", ""))
     parsed = json.loads(raw_output)
 
-    if len(parsed.get("market_news_briefs", [])) != 3:
-        raise ValueError("Ollama response did not return exactly 3 market news briefs.")
-    return parsed
+    return normalize_brief_output(parsed, config.digest_tickers)
 
 
 def generate_github_models_brief(
@@ -487,11 +542,7 @@ def generate_github_models_brief(
     raw_output = payload["choices"][0]["message"]["content"]
     parsed = json.loads(strip_code_fences(raw_output))
 
-    if len(parsed.get("market_news_briefs", [])) != 3:
-        raise ValueError(
-            "GitHub Models response did not return exactly 3 market news briefs."
-        )
-    return parsed
+    return normalize_brief_output(parsed, config.digest_tickers)
 
 
 def build_fallback_brief(
