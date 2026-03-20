@@ -1,12 +1,12 @@
 # Daily S&P 500 Weak-Stock Agent
 
-This project builds a simple local agent for your 2022 M1 Pro MacBook Pro. Every morning it:
+This project builds a simple local agent for your 2022 M1 Pro MacBook Pro. Each trading day it:
 
 - pulls the current S&P 500 constituent list
 - finds the daily top mover and bottom mover in the index
 - gathers broad market news
 - builds daily digests for `VOO`, `QQQM`, `VGT`, `KLAC`, `NVDA`, and `JPM`
-- uses either a local Ollama model or GitHub Models to turn the raw data into a concise HTML morning email
+- uses either a local Ollama model or GitHub Models to turn the raw data into a concise HTML end-of-day email
 
 ## Files
 
@@ -61,7 +61,7 @@ python stock_agent.py
 
 If everything is configured correctly, it will email the report to all addresses in `EMAIL_TO`.
 
-## 4. Schedule it every morning on macOS
+## 4. Schedule it on macOS
 
 Copy the template into LaunchAgents:
 
@@ -124,6 +124,6 @@ You can change those with these `.env` values:
 
 ## Notes
 
-- This uses `yfinance` for market data, Google News RSS for headlines, and either Ollama or GitHub Models for the written morning brief.
+- This uses `yfinance` for market data, Google News RSS for headlines, and either Ollama or GitHub Models for the written daily digest.
 - Yahoo Finance and news feeds can occasionally rate-limit or change format.
 - This is a monitoring tool, not investment advice.

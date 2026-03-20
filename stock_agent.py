@@ -471,7 +471,7 @@ def generate_ollama_brief(config: Config, llm_input: dict[str, Any]) -> dict[str
         return None
 
     prompt = (
-        "You write a concise U.S. morning market email. "
+        "You write a concise U.S. daily market digest email sent after market close. "
         "Use only the supplied data. Do not invent facts. "
         "Return valid JSON that matches the provided schema exactly. "
         "market_news_briefs must contain exactly 3 items. "
@@ -509,7 +509,7 @@ def generate_github_models_brief(
 
     schema = build_brief_schema(config.digest_tickers)
     prompt = (
-        "You write a concise U.S. morning market email. "
+        "You write a concise U.S. daily market digest email sent after market close. "
         "Use only the supplied data. Do not invent facts. "
         "Return valid JSON that matches the requested schema exactly. "
         "market_news_briefs must contain exactly 3 items. "
