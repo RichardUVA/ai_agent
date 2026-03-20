@@ -18,6 +18,7 @@ from urllib.parse import quote_plus
 import pandas as pd
 import requests
 import yfinance as yf
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from zoneinfo import ZoneInfo
 
@@ -115,9 +116,36 @@ def parse_email_list_env(name: str) -> list[str]:
 def get_sp500_table() -> pd.DataFrame:
     response = requests.get(WIKI_URL, headers=USER_AGENT, timeout=30)
     response.raise_for_status()
-    table = pd.read_html(io.StringIO(response.text))[0]
-    table["Symbol"] = table["Symbol"].str.replace(".", "-", regex=False)
-    return table[["Symbol", "Security", "GICS Sector"]].copy()
+    soup = BeautifulSoup(response.text, "html.parser")
+    table = soup.find("table", {"id": "constituents"})
+    if table is None:
+        raise RuntimeError("Could not find the S&P 500 constituents table on Wikipedia.")
+
+    rows: list[dict[str, str]] = []
+    body = table.find("tbody")
+    if body is None:
+        raise RuntimeError("The S&P 500 constituents table is missing a table body.")
+
+    for tr in body.find_all("tr"):
+        cells = tr.find_all("td")
+        if len(cells) < 4:
+            continue
+        symbol = clean_text(cells[0].get_text(" ", strip=True)).replace(".", "-")
+        security = clean_text(cells[1].get_text(" ", strip=True))
+        sector = clean_text(cells[3].get_text(" ", strip=True))
+        if symbol and security and sector:
+            rows.append(
+                {
+                    "Symbol": symbol,
+                    "Security": security,
+                    "GICS Sector": sector,
+                }
+            )
+
+    if not rows:
+        raise RuntimeError("No S&P 500 rows were parsed from Wikipedia.")
+
+    return pd.DataFrame(rows)
 
 
 def download_price_history(
