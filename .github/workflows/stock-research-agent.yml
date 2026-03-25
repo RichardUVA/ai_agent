@@ -6,7 +6,7 @@ on:
     - cron: "15 * * * *"
 
 permissions:
-  contents: read
+  contents: write
   models: read
 
 jobs:
@@ -64,10 +64,25 @@ jobs:
         if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
         run: python stock_research_agent.py | tee stock-research.log
 
+      - name: Commit research memory updates
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -d research_memory ] && [ -n "$(find research_memory -type f -maxdepth 1 2>/dev/null)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add research_memory program.md
+            if ! git diff --cached --quiet; then
+              git commit -m "Update stock research memory"
+              git push
+            fi
+          fi
+
       - name: Upload research report artifact
         if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: stock-research-report
-          path: research_reports/
+          path: |
+            research_reports/
+            research_memory/
           if-no-files-found: error
