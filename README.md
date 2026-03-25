@@ -15,6 +15,8 @@ This project builds a simple local agent for your 2022 M1 Pro MacBook Pro. Each 
 - `requirements.txt`: Python dependencies
 - `launchd/com.richardwang.stockagent.plist.template`: macOS scheduler template
 - `.github/workflows/daily-market-agent.yml`: GitHub Actions cloud scheduler
+- `stock_research_agent.py`: deeper research memo generator
+- `.github/workflows/stock-research-agent.yml`: GitHub Actions research workflow
 
 ## 1. Create a virtual environment
 
@@ -101,6 +103,25 @@ Add these GitHub repository secrets before enabling the workflow:
 - `EMAIL_TO`
 
 The workflow already gets `GITHUB_TOKEN` automatically and requests `models: read` permission.
+
+## 6. Automatic stock research agent
+
+This repo also includes a separate research workflow for deeper analysis:
+
+- script: `stock_research_agent.py`
+- workflow: `.github/workflows/stock-research-agent.yml`
+
+What it does:
+
+- researches your core tickers plus fresh S&P 500 buy candidates
+- writes a longer HTML memo with market context, bull case, bear case, risks, and what to watch next
+- emails the memo
+- saves the memo as a workflow artifact
+
+Default schedule:
+
+- Sunday at 6:00 PM `America/Detroit`
+- can also be run manually with `workflow_dispatch`
 
 ## Report behavior
 
