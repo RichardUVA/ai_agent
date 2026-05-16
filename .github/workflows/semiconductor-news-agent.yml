@@ -1,0 +1,91 @@
+name: Semiconductor News Agent
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 * * * *"
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  send-semiconductor-news:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/Detroit
+      LLM_PROVIDER: github_models
+      GITHUB_MODELS_MODEL: openai/gpt-4.1
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      TIMEZONE: America/Detroit
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SEMICONDUCTOR_EMAIL_ENABLED: "true"
+      SEMICONDUCTOR_OBSIDIAN_ROOT: "obsidian/Semiconductor News"
+      SEMICONDUCTOR_RSS_DAYS: "7"
+      SEMICONDUCTOR_RSS_PER_TOPIC_LIMIT: "8"
+      SEMICONDUCTOR_MAX_ARTICLES_FOR_AI: "35"
+      SEMICONDUCTOR_RSS_TOPICS: "semiconductor industry;NVIDIA AI chips;TSMC foundry;ASML lithography;semiconductor equipment;memory chips DRAM NAND;chip export controls;advanced packaging chiplets"
+
+    steps:
+      - name: Check Detroit time
+        id: schedule_gate
+        run: |
+          NOW="$(TZ=America/Detroit date '+%Y-%m-%d %H:%M:%S %Z')"
+          HOUR="$(TZ=America/Detroit date +%H)"
+          DAY="$(TZ=America/Detroit date +%u)"
+          echo "Current Detroit time: $NOW"
+          if [ "$DAY" != "7" ] || [ "$HOUR" != "17" ]; then
+            echo "Skipping semiconductor news because it is not Sunday 5 PM in Detroit."
+            echo "run_now=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Sending weekly semiconductor news now."
+          echo "run_now=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check out repository
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Send semiconductor news report
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        run: python semiconductor_news_agent.py | tee semiconductor-news.log
+
+      - name: Commit Obsidian report
+        if: steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -d "obsidian/Semiconductor News" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -f "obsidian/Semiconductor News"
+            if ! git diff --cached --quiet; then
+              git commit -m "Add semiconductor news report"
+              git push
+            fi
+          fi
+
+      - name: Upload semiconductor report artifact
+        if: always() && (steps.schedule_gate.outputs.run_now == 'true' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v4
+        with:
+          name: semiconductor-news-report
+          path: |
+            obsidian/Semiconductor News/
+            semiconductor-news.log
+          if-no-files-found: ignore

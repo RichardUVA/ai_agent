@@ -18,6 +18,8 @@ This project builds a simple local agent for your 2022 M1 Pro MacBook Pro. Each 
 - `stock_research_agent.py`: deeper research memo generator
 - `.github/workflows/stock-research-agent.yml`: GitHub Actions research workflow
 - `program.md`: human-edited research charter for the autoresearch loop
+- `semiconductor_news_agent.py`: weekly semiconductor news and trend report
+- `.github/workflows/semiconductor-news-agent.yml`: GitHub Actions semiconductor news workflow
 
 ## 1. Create a virtual environment
 
@@ -157,3 +159,47 @@ You can change those with these `.env` values:
 - This uses `yfinance` for market data, Google News RSS for headlines, and either Ollama or GitHub Models for the written daily digest.
 - Yahoo Finance and news feeds can occasionally rate-limit or change format.
 - This is a monitoring tool, not investment advice.
+
+## 7. Weekly semiconductor news agent
+
+This repo also includes a semiconductor news agent:
+
+- fetches Google News RSS for semiconductor topics
+- summarizes the week with Ollama or GitHub Models
+- identifies cross-headline trends and watch items
+- generates an Obsidian-compatible Markdown note
+- emails the report through the same SMTP settings as the stock agent
+
+Configure these optional `.env` values:
+
+```bash
+SEMICONDUCTOR_EMAIL_ENABLED=true
+SEMICONDUCTOR_OBSIDIAN_ROOT=/Users/richardwang/Documents/Obsidian/Semiconductor News
+SEMICONDUCTOR_RSS_DAYS=7
+SEMICONDUCTOR_RSS_PER_TOPIC_LIMIT=8
+SEMICONDUCTOR_MAX_ARTICLES_FOR_AI=35
+SEMICONDUCTOR_RSS_TOPICS=semiconductor industry;NVIDIA AI chips;TSMC foundry;ASML lithography;semiconductor equipment;memory chips DRAM NAND;chip export controls;advanced packaging chiplets
+```
+
+Run it manually:
+
+```bash
+source .venv/bin/activate
+python semiconductor_news_agent.py
+```
+
+The default local fallback path is:
+
+```text
+obsidian/Semiconductor News/YYYY/MM-Month/YYYY-MM-DD-semiconductor-news.md
+```
+
+This repo also includes `.github/workflows/semiconductor-news-agent.yml`.
+
+The workflow:
+
+- runs hourly, then gates on Sunday at 5:00 PM `America/Detroit`
+- uses GitHub Models through the automatic `GITHUB_TOKEN`
+- emails the report with the same SMTP secrets as the stock workflows
+- commits generated Markdown notes under `obsidian/Semiconductor News/`
+- uploads the report folder and log as workflow artifacts
