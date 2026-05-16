@@ -445,55 +445,117 @@ def save_obsidian_report(
     return report_path
 
 
-def markdown_to_email_html(markdown: str, report_path: Path) -> str:
-    body_lines = []
-    in_list = False
-    for raw_line in markdown.splitlines():
-        line = raw_line.strip()
-        if line == "---":
-            continue
-        if line.startswith(("title:", "date:", "type:", "tags:", "  - ")):
-            continue
-        if not line:
-            if in_list:
-                body_lines.append("</ul>")
-                in_list = False
-            continue
-        if line.startswith("# "):
-            if in_list:
-                body_lines.append("</ul>")
-                in_list = False
-            body_lines.append(f"<h1>{html.escape(line[2:])}</h1>")
-        elif line.startswith("## "):
-            if in_list:
-                body_lines.append("</ul>")
-                in_list = False
-            body_lines.append(f"<h2>{html.escape(line[3:])}</h2>")
-        elif line.startswith("### "):
-            if in_list:
-                body_lines.append("</ul>")
-                in_list = False
-            body_lines.append(f"<h3>{html.escape(line[4:])}</h3>")
-        elif line.startswith("- "):
-            if not in_list:
-                body_lines.append("<ul>")
-                in_list = True
-            body_lines.append(f"<li>{format_inline_markdown(line[2:])}</li>")
-        else:
-            if in_list:
-                body_lines.append("</ul>")
-                in_list = False
-            body_lines.append(f"<p>{format_inline_markdown(line)}</p>")
-    if in_list:
-        body_lines.append("</ul>")
-
+def render_email_report(
+    generated_at: datetime,
+    config: SemiconductorConfig,
+    articles: list[dict[str, str]],
+    summary: dict[str, Any],
+    llm_status: str,
+    report_path: Path,
+) -> str:
+    date_string = generated_at.strftime("%b %-d, %Y")
+    generated_string = generated_at.strftime("%Y-%m-%d %I:%M %p %Z")
+    topic_count = len(config.rss_topics)
+    article_count = len(articles)
+    source_count = len({item.get("source", "") for item in articles if item.get("source")})
+    topic_chips = "".join(
+        f"<span style='display:inline-block; margin:0 6px 6px 0; padding:6px 10px; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:12px; font-weight:700;'>{html.escape(topic)}</span>"
+        for topic in config.rss_topics[:8]
+    )
+    developments_html = "".join(
+        (
+            "<tr>"
+            "<td style='padding:0 0 12px;'>"
+            "<div style='border:1px solid #e5e7eb; border-left:4px solid #2563eb; border-radius:12px; padding:14px 16px; background:#ffffff;'>"
+            f"<div style='font-size:15px; font-weight:800; color:#111827; margin-bottom:6px;'>{html.escape(item['headline'])}</div>"
+            f"<div style='font-size:14px; color:#4b5563;'>{html.escape(item['why_it_matters'])}</div>"
+            "</div>"
+            "</td>"
+            "</tr>"
+        )
+        for item in summary["key_developments"][:8]
+    )
+    trends_html = "".join(
+        (
+            "<tr>"
+            "<td style='padding:0 0 14px;'>"
+            "<div style='border:1px solid #dbe4e8; border-radius:14px; padding:16px; background:#f8fafc;'>"
+            f"<div style='font-size:16px; font-weight:800; color:#0f172a; margin-bottom:10px;'>{html.escape(item['trend'])}</div>"
+            "<table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='border-collapse:collapse;'>"
+            "<tr>"
+            "<td style='padding:0 12px 0 0; width:50%; vertical-align:top;'>"
+            "<div style='font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; font-weight:800; margin-bottom:4px;'>Evidence</div>"
+            f"<div style='font-size:14px; color:#334155;'>{html.escape(item['evidence'])}</div>"
+            "</td>"
+            "<td style='padding:0 0 0 12px; width:50%; vertical-align:top; border-left:1px solid #e2e8f0;'>"
+            "<div style='font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; font-weight:800; margin-bottom:4px;'>Watch next</div>"
+            f"<div style='font-size:14px; color:#334155;'>{html.escape(item['watch_next'])}</div>"
+            "</td>"
+            "</tr>"
+            "</table>"
+            "</div>"
+            "</td>"
+            "</tr>"
+        )
+        for item in summary["trends"][:6]
+    )
+    company_html = render_company_watchlist(summary["company_watchlist"])
+    questions_html = render_question_list(summary["open_questions"])
+    source_html = render_source_headlines(articles[:12])
     return f"""
     <html>
-      <body style="margin:0; padding:24px 0; background:#f6f7f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#111827; line-height:1.55;">
-        <div style="max-width:820px; margin:0 auto; padding:0 16px;">
-          <div style="background:#ffffff; border:1px solid #e5e7eb; border-radius:16px; padding:24px;">
-            {''.join(body_lines)}
-            <p style="margin-top:24px; color:#6b7280; font-size:13px;">Saved to Obsidian path: {html.escape(str(report_path))}</p>
+      <body style="margin:0; padding:0; background:#eef2f6; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#111827; line-height:1.55;">
+        <div style="display:none; overflow:hidden; line-height:1px; opacity:0; max-height:0; max-width:0;">Weekly semiconductor trends, key developments, and source headlines.</div>
+        <div style="max-width:860px; margin:0 auto; padding:24px 14px;">
+          <div style="background:#0f172a; border-radius:20px 20px 0 0; padding:28px 28px 24px; color:#ffffff;">
+            <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.14em; color:#93c5fd; font-weight:800;">Semiconductor Briefing</div>
+            <h1 style="margin:10px 0 8px; font-size:30px; line-height:1.15; font-weight:850;">Weekly industry signal report</h1>
+            <p style="margin:0; color:#cbd5e1; font-size:14px;">{html.escape(date_string)} - generated {html.escape(generated_string)}</p>
+            <div style="margin-top:18px;">
+              <span style="display:inline-block; margin:0 8px 8px 0; padding:8px 11px; border-radius:10px; background:#1e293b; color:#e0f2fe; font-size:13px; font-weight:800;">{article_count} headlines</span>
+              <span style="display:inline-block; margin:0 8px 8px 0; padding:8px 11px; border-radius:10px; background:#1e293b; color:#e0f2fe; font-size:13px; font-weight:800;">{topic_count} topics</span>
+              <span style="display:inline-block; margin:0 8px 8px 0; padding:8px 11px; border-radius:10px; background:#1e293b; color:#e0f2fe; font-size:13px; font-weight:800;">{source_count} sources</span>
+            </div>
+          </div>
+
+          <div style="background:#ffffff; border:1px solid #d8dee8; border-top:0; border-radius:0 0 20px 20px; overflow:hidden;">
+            <div style="padding:24px 28px; border-bottom:1px solid #e5e7eb;">
+              <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.1em; color:#64748b; font-weight:900; margin-bottom:8px;">Executive summary</div>
+              <p style="margin:0; font-size:17px; color:#1f2937; line-height:1.65;">{html.escape(summary['executive_summary'])}</p>
+              <div style="margin-top:16px;">{topic_chips}</div>
+              <p style="margin:10px 0 0; color:#6b7280; font-size:12px;">{html.escape(llm_status)}</p>
+            </div>
+
+            <div style="padding:24px 28px 12px; border-bottom:1px solid #e5e7eb;">
+              <h2 style="margin:0 0 16px; font-size:21px; color:#111827;">Key developments</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">{developments_html}</table>
+            </div>
+
+            <div style="padding:24px 28px 10px; border-bottom:1px solid #e5e7eb;">
+              <h2 style="margin:0 0 16px; font-size:21px; color:#111827;">Trend map</h2>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">{trends_html}</table>
+            </div>
+
+            <div style="padding:24px 28px; border-bottom:1px solid #e5e7eb;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                <tr>
+                  <td style="width:50%; padding:0 12px 0 0; vertical-align:top;">
+                    <h2 style="margin:0 0 12px; font-size:19px; color:#111827;">Company watchlist</h2>
+                    {company_html}
+                  </td>
+                  <td style="width:50%; padding:0 0 0 12px; vertical-align:top;">
+                    <h2 style="margin:0 0 12px; font-size:19px; color:#111827;">Open questions</h2>
+                    {questions_html}
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="padding:24px 28px;">
+              <h2 style="margin:0 0 14px; font-size:21px; color:#111827;">Source headlines</h2>
+              {source_html}
+              <p style="margin:22px 0 0; color:#6b7280; font-size:12px;">Saved to Obsidian path: {html.escape(str(report_path))}</p>
+            </div>
           </div>
         </div>
       </body>
@@ -501,11 +563,65 @@ def markdown_to_email_html(markdown: str, report_path: Path) -> str:
     """.strip()
 
 
-def format_inline_markdown(value: str) -> str:
-    escaped = html.escape(value)
-    escaped = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", escaped)
-    escaped = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', escaped)
-    return escaped
+def render_company_watchlist(items: list[dict[str, str]]) -> str:
+    if not items:
+        return (
+            "<div style='border:1px dashed #cbd5e1; border-radius:12px; padding:14px; color:#64748b; font-size:14px;'>"
+            "No company watchlist generated."
+            "</div>"
+        )
+    return "".join(
+        (
+            "<div style='margin:0 0 10px; padding:12px; border:1px solid #e5e7eb; border-radius:12px; background:#fcfcfd;'>"
+            f"<div style='font-size:14px; font-weight:800; color:#111827;'>{html.escape(item['name'])}</div>"
+            f"<div style='font-size:13px; color:#4b5563; margin-top:4px;'>{html.escape(item['note'])}</div>"
+            "</div>"
+        )
+        for item in items[:8]
+    )
+
+
+def render_question_list(items: list[str]) -> str:
+    if not items:
+        return (
+            "<div style='border:1px dashed #cbd5e1; border-radius:12px; padding:14px; color:#64748b; font-size:14px;'>"
+            "No open questions generated."
+            "</div>"
+        )
+    rows = "".join(
+        f"<li style='margin:0 0 10px; color:#334155;'>{html.escape(item)}</li>"
+        for item in items[:8]
+    )
+    return f"<ul style='margin:0; padding-left:20px; font-size:14px;'>{rows}</ul>"
+
+
+def render_source_headlines(items: list[dict[str, str]]) -> str:
+    if not items:
+        return (
+            "<div style='border:1px dashed #cbd5e1; border-radius:12px; padding:14px; color:#64748b; font-size:14px;'>"
+            "No RSS headlines were collected."
+            "</div>"
+        )
+    rows = []
+    for item in items:
+        source = item.get("source") or item["topic"]
+        meta = f"{source} - {item['topic']}"
+        rows.append(
+            (
+                "<tr>"
+                "<td style='padding:12px 0; border-top:1px solid #eef2f7;'>"
+                f"<a href='{html.escape(item['link'])}' style='color:#0f172a; font-weight:800; text-decoration:none;'>{html.escape(item['title'])}</a>"
+                f"<div style='margin-top:5px; color:#64748b; font-size:12px;'>{html.escape(meta)}"
+                f"{' - ' + html.escape(item['pub_date']) if item.get('pub_date') else ''}</div>"
+                "</td>"
+                "</tr>"
+            )
+        )
+    return (
+        "<table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='border-collapse:collapse;'>"
+        + "".join(rows)
+        + "</table>"
+    )
 
 
 def main() -> None:
@@ -539,7 +655,14 @@ def main() -> None:
     if config.email_enabled:
         email_config = stock_agent.load_config()
         subject = f"Weekly Semiconductor News - {now.strftime('%Y-%m-%d')}"
-        email_html = markdown_to_email_html(markdown, report_path)
+        email_html = render_email_report(
+            generated_at=now,
+            config=config,
+            articles=articles,
+            summary=summary,
+            llm_status=llm_status,
+            report_path=report_path,
+        )
         stock_agent.send_email(email_config, subject, email_html)
         print(f"Semiconductor report sent to {', '.join(email_config.email_to)}")
     else:
